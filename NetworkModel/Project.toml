@@ -1,0 +1,10 @@
+name = "NetworkModel"
+uuid = "f465944d-3ff9-4fc1-8163-407ed11b4623"
+authors = ["Alessio <alessio.quaresima@mpi.nl>"]
+version = "0.1.0"
+
+[deps]
+SpikingNeuralNetworks = "9d8b7fda-1049-58bc-9481-071a9f369938"
+
+[compat]
+SpikingNeuralNetworks = "1.1.0"
