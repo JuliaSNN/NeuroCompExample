@@ -184,9 +184,12 @@ plot(waveform, xlabel="Time (ms)", ylabel="Afferent rate (Hz)", title="Afferent 
 # ## Simulation with Varying Input
 #
 # Run the simulation with the time-varying afferent input.
+#
+# Notice. Sometimes the network enters into runaway activity because of statistical fluctuations, in this case just generate a new model with the `network` function and re-run it.
 
 # %%
 # Reset the model and clear previous recordings
+model = network(Zerlaut2019_network)  # Recreate the network to reset state
 SNN.reset_time!(model)
 SNN.clear_records!(model)
 
