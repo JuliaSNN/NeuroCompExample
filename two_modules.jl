@@ -10,9 +10,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.11.2
 #   kernelspec:
-#     display_name: Julia 1.11.5
+#     display_name: Julia 1.12.1
 #     language: julia
-#     name: julia-1.11
+#     name: julia-1.12
 # ---
 
 # %% [markdown]
@@ -45,7 +45,8 @@ SNN.@load_units
 
 # %%
 # Define network configuration parameters
-import SpikingNeuralNetworks: IF, PoissonLayer, Stimulus, SpikingSynapse, compose, monitor!, sim!, firing_rate, @update, SingleExpSynapse, IFParameter, Population, PostSpike
+import SpikingNeuralNetworks: IF, PoissonLayer, Stimulus, SpikingSynapse, compose, monitor!, sim!, firing_rate, @update, SingleExpSynapse, IFParameter, Population, PostSpike, AdExParameter
+
 
 Zerlaut2019_network = (
     # Number of neurons in each population
@@ -58,6 +59,8 @@ Zerlaut2019_network = (
                 Vt = -50.0mV,       # Spike threshold
                 Vr = -70.0f0mV,     # Reset potential
                 R  = 1/10nS,        # Membrane resistance
+                # a = 4nS,
+                # b = 80pA
                 ),
 
     # Parameters for inhibitory neurons
@@ -69,32 +72,39 @@ Zerlaut2019_network = (
                 R  = 1/10nS,        # Membrane resistance
                 ),
 
-    spike = PostSpike(τabs = 2ms),         # Absolute refractory period
+    spike_exc = PostSpike(τabs = 2ms),         # Absolute refractory period
+    spike_inh = PostSpike(τabs = 1ms),         # Absolute refractory period 
 
     # Synaptic properties
-    synapse = SingleExpSynapse(
+    synapse_exc = SingleExpSynapse(
                 τi=5ms,             # Inhibitory synaptic time constant
                 τe=5ms,             # Excitatory synaptic time constant
                 E_i = -80mV,        # Inhibitory reversal potential
                 E_e = 0mV           # Excitatory reversal potential
             ),
 
+    synapse_inh = SingleExpSynapse(
+                τi=5ms,             # Inhibitory synaptic time constant
+                τe=5ms,             # Excitatory synaptic time constant
+                E_i = -80mV,        # Inhibitory reversal potential
+                E_e = 0mV           # Excitatory reversal potential
+            ),
+
+
     # Connection probabilities and synaptic weights
     connections = (
-        E_to_E = (p = 0.05, μ = 2nS, rule=:Fixed),  # Excitatory to excitatory
-        E_to_I = (p = 0.05, μ = 2nS, rule=:Fixed),  # Excitatory to inhibitory
+        E_to_E = (p = 0.05, μ = 2nS,  rule=:Fixed),  # Excitatory to excitatory
+        E_to_I = (p = 0.05, μ = 2nS,  rule=:Fixed),  # Excitatory to inhibitory
         I_to_E = (p = 0.05, μ = 10nS, rule=:Fixed), # Inhibitory to excitatory
         I_to_I = (p = 0.05, μ = 10nS, rule=:Fixed), # Inhibitory to inhibitory
         ),
 
     # Parameters for external Poisson input
-
     afferents = (
         layer = PoissonLayer(rate=10Hz, N=100), # Poisson input layer
-        conn = (p = 0.1f0, μ = 4.0), # Connection probability and weight
+        conn = (p = 0.1f0, μ = 4.0nS), # Connection probability and weight
         ),
 )
-
 
 # %% [markdown]
 # ## Network Construction
@@ -103,28 +113,29 @@ Zerlaut2019_network = (
 
 # %%
 # Function to create the network
-function network(config)
-    @unpack afferents, connections, Npop, synapse, spike, exc, inh = config
+function network(config, name)
+    @unpack afferents, connections, Npop, spike_exc, spike_inh, exc, inh = config
+    @unpack synapse_exc, synapse_inh = config
 
     # Create neuron populations
-    E = Population(exc; synapse, spike, N=Npop.E, name="E")  # Excitatory population
-    I = Population(inh; synapse, spike, N=Npop.I, name="I")  # Inhibitory population
+    E = Population(exc; synapse=synapse_exc, spike=spike_exc, N=Npop.E, name=name*"E")  # Excitatory population
+    I = Population(inh; synapse=synapse_inh, spike=spike_inh, N=Npop.I, name=name*"I")  # Inhibitory population
 
     # Create external Poisson input
     @unpack layer = afferents
-    afferentE = Stimulus(layer, E, :ge, conn=afferents.conn, name="noiseE")  # Excitatory input
-    afferentI = Stimulus(layer, I, :ge, conn=afferents.conn, name="noiseI")  # Inhibitory input
+    afferentE = Stimulus(layer, E, :glu, conn=afferents.conn, name="noiseE")  # Excitatory input
+    afferentI = Stimulus(layer, I, :glu, conn=afferents.conn, name="noiseI")  # Inhibitory input
 
     # Create recurrent connections
     synapses = (
-        E_to_E = SpikingSynapse(E, E, :ge, conn = connections.E_to_E, name="E_to_E"),
-        E_to_I = SpikingSynapse(E, I, :ge, conn = connections.E_to_I, name="E_to_I"),
-        I_to_E = SpikingSynapse(I, E, :gi, conn = connections.I_to_E, name="I_to_E"),
-        I_to_I = SpikingSynapse(I, I, :gi, conn = connections.I_to_I, name="I_to_I"),
+        E_to_E = SpikingSynapse(E, E, :glu, conn = connections.E_to_E, name="E_to_E"),
+        E_to_I = SpikingSynapse(E, I, :glu, conn = connections.E_to_I, name="E_to_I"),
+        I_to_E = SpikingSynapse(I, E, :gaba, conn = connections.I_to_E, name="I_to_E"),
+        I_to_I = SpikingSynapse(I, I, :gaba, conn = connections.I_to_I, name="I_to_I"),
     )
 
     # Compose the model
-    model = compose(;E,I, afferentE, afferentI, synapses..., silent=true, name="Balanced network")
+    model = compose(; E,I, afferentE, afferentI, synapses..., name="Balanced network")
 
     # Set up monitoring
     monitor!(model.pop, [:fire])  # Monitor spikes
@@ -140,7 +151,36 @@ end
 
 # %%
 # Create and simulate the network
-model = network(Zerlaut2019_network)
+
+high_noise = SNN.@update Zerlaut2019_network begin
+    afferents.layer = PoissonLayer(rate=10Hz, N=100) # Reduced Poisson input layer
+end
+
+low_noise = SNN.@update Zerlaut2019_network begin
+    afferents.layer = PoissonLayer(rate=5Hz, N=100) # Reduced Poisson input layer
+end
+
+model1 = network(high_noise, "Model1")
+model2 = network(low_noise, "Model2")
+
+inter_EE = SNN.SpikingSynapse(
+    model1.pop.E,
+    model2.pop.E,
+    :ge,
+    conn = (p=0.05, μ=0.2f0, rule=:Fixed),
+    name="Inter_module_EE"
+)
+
+inter_EI = SNN.SpikingSynapse(
+    model1.pop.E,
+    model2.pop.I,
+    :ge,
+    conn = (p=0.05, μ=0.2f0, rule=:Fixed),
+    name="Inter_module_EI"
+)
+
+model = SNN.compose(;model1, model2, inter_EE, inter_EI) 
+
 SNN.print_model(model)  # Print model summary
 SNN.sim!(model, duration=5s)  # Simulate for 5 seconds
 
@@ -151,7 +191,7 @@ SNN.sim!(model, duration=5s)  # Simulate for 5 seconds
 
 # %%
 # Plot raster plot of network activity
-SNN.raster(model.pop, every=5, title="Raster plot of the balanced network")
+SNN.raster(model.pop, every=1, title="Raster plot of the balanced network")
 
 # %% [markdown]
 # ## Afferent Waveform
@@ -190,9 +230,9 @@ plot(waveform, xlabel="Time (ms)", ylabel="Afferent rate (Hz)", title="Afferent 
 
 # %%
 # Reset the model and clear previous recordings
-model = network(Zerlaut2019_network)  # Recreate the network to reset state
-SNN.reset_time!(model)
-SNN.clear_records!(model)
+model1 = network(Zerlaut2019_network)  # Recreate the network to reset state
+SNN.reset_time!(model1)
+SNN.clear_records!(model1)
 
 # Monitor membrane potentials
 SNN.monitor!(model.pop, [:v])
@@ -221,21 +261,70 @@ plot!(r, fr, labels=hcat(labels...), xlabel="Time (s)", ylabel="Firing rate (Hz)
 # %%
 # Plot membrane potentials for selected neurons
 # Get membrane potentials for excitatory neurons
-v, r = SNN.record(model.pop.E, :v, range=true);
 
 # Create plots for 3 excitatory neurons
+# plotsE = map(1:3) do i
+SNN.vecplot(model.pop.E, :v, neurons=3, 
+            xlabel="Time (s)", 
+            ylabel="Potential (mV)", 
+            label="Exc _3",  
+            lw=2, 
+            c=:darkblue)
+# end
+
+v, r = SNN.record(model.pop.E, :v, range=true);
+# Create plots for 3 inhibitory neurons
 plotsE = map(1:3) do i
-    SNN.vecplot(model.pop.E, :v, neurons=i, xlabel="Time (s)", ylabel="Potential (mV)", label="Exc $i",  lw=2, c=:darkblue)
+    plot(r, v(i,r), xlabel="Time (s)", ylabel="Potential (mV)", label="Inh $i",  lw=2, c=:darkred)
 end
 
 
+v, r = SNN.record(model.pop.I, :v, range=true);
 # Create plots for 3 inhibitory neurons
 plotsI = map(1:3) do i
-    plot(r, v[i,:], xlabel="Time (s)", ylabel="Potential (mV)", label="Inh $i",  lw=2, c=:darkred)
+    plot(r, v(i,r), xlabel="Time (s)", ylabel="Potential (mV)", label="Inh $i",  lw=2, c=:darkblue)
 end
 
 # Combine and arrange plots
 plots = vcat(plotsE..., plotsI...)[[1,4,2,5,3,6]]
 plot(plots..., layout=(3,2), plot_title="Neuron membrane (mV)", size=(900,600))
+
+# %% [markdown]
+# ## Connect two modules
+#
+# Connect two networks with excitatory synapses
+
+# %%
+high_noise = SNN.@update Zerlaut2019_network begin
+    afferents.layer = PoissonLayer(rate=10Hz, N=100) # Reduced Poisson input layer
+end
+model1 = network(high_noise);
+
+low_noise = SNN.@update Zerlaut2019_network begin
+    afferents.layer = PoissonLayer(rate=5Hz, N=100) # Reduced Poisson input layer
+end
+model2 = network(low_noise);
+
+# %%
+intermodule = SNN.SpikingSynapse(
+    model1.pop.E,
+    model2.pop.E,
+    :ge,
+    conn = (p=0.05, μ=0.00f0, rule=:Fixed),
+    name="Inter_module_EE"
+)
+
+# %%
+full_model = SNN.compose(;model1, model2, intermodule)
+
+# %%
+SNN.reset_time!(full_model)
+SNN.clear_records!(full_model)
+sim!(full_model, duration=5s)
+
+# %%
+SNN.raster(full_model.pop, title="Raster plot of module 1")
+
+# %%
 
 # %%
