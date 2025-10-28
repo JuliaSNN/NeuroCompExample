@@ -169,3 +169,5 @@ end
 model = network(Zerlaut2019_network)
 SNN.print_model(model)  # Print model summary
 SNN.sim!(model, duration=5s)  # Simulate for 5 seconds
+
+SNN.raster(model.pop, every=1, title="Raster plot of the balanced network")
