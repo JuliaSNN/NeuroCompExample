@@ -45,7 +45,7 @@ SNN.@load_units
 
 # %%
 # Define network configuration parameters
-import SpikingNeuralNetworks: IFSinExpParameter, IF, PoissonLayer, Stimulus, SpikingSynapse, compose, monitor!, sim!, firing_rate, @update, SingleExpSynapse, IFParameter, Population, PostSpike
+import SpikingNeuralNetworks: IF, PoissonLayer, Stimulus, SpikingSynapse, compose, monitor!, sim!, firing_rate, @update, SingleExpSynapse, IFParameter, Population, PostSpike
 
 Zerlaut2019_network = (
     # Number of neurons in each population
@@ -88,12 +88,13 @@ Zerlaut2019_network = (
         ),
 
     # Parameters for external Poisson input
+
     afferents = (
-        N = 100,                    # Number of input neurons
-        rate = 20Hz,                # Base firing rate
+        layer = PoissonLayer(rate=10Hz, N=100), # Poisson input layer
         conn = (p = 0.1f0, μ = 4.0), # Connection probability and weight
         ),
 )
+
 
 # %% [markdown]
 # ## Network Construction
@@ -110,9 +111,9 @@ function network(config)
     I = Population(inh; synapse, spike, N=Npop.I, name="I")  # Inhibitory population
 
     # Create external Poisson input
-    AfferentParam = PoissonLayer(rate=afferents.rate, N=afferents.N)
-    afferentE = Stimulus(AfferentParam, E, :ge, conn=afferents.conn, name="noiseE")  # Excitatory input
-    afferentI = Stimulus(AfferentParam, I, :ge, conn=afferents.conn, name="noiseI")  # Inhibitory input
+    @unpack layer = afferents
+    afferentE = Stimulus(layer, E, :ge, conn=afferents.conn, name="noiseE")  # Excitatory input
+    afferentI = Stimulus(layer, I, :ge, conn=afferents.conn, name="noiseI")  # Inhibitory input
 
     # Create recurrent connections
     synapses = (
@@ -224,11 +225,9 @@ v, r = SNN.record(model.pop.E, :v, range=true);
 
 # Create plots for 3 excitatory neurons
 plotsE = map(1:3) do i
-    plot(r, v[i,:], xlabel="Time (s)", ylabel="Potential (mV)", label="Exc $i",  lw=2, c=:darkblue)
+    SNN.vecplot(model.pop.E, :v, neurons=i, xlabel="Time (s)", ylabel="Potential (mV)", label="Exc $i",  lw=2, c=:darkblue)
 end
 
-# Get membrane potentials for inhibitory neurons
-v , r = SNN.record(model.pop.I, :v, range=true);
 
 # Create plots for 3 inhibitory neurons
 plotsI = map(1:3) do i

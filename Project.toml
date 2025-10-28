@@ -1,10 +1,20 @@
 name = "NetworkModel"
 uuid = "f465944d-3ff9-4fc1-8163-407ed11b4623"
-authors = ["Alessio <alessio.quaresima@mpi.nl>"]
 version = "0.1.0"
+authors = ["Alessio <alessio.quaresima@mpi.nl>"]
 
 [deps]
+DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+SNNModels = "5fb03681-66ea-42c3-a459-1265ed30d607"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 SpikingNeuralNetworks = "9d8b7fda-1049-58bc-9481-071a9f369938"
+UnPack = "3a884ed6-31ef-47d7-9d2a-63182c4928ed"
 
 [compat]
+DrWatson = "2.19.1"
+Plots = "1.41.1"
+SNNModels = "1.6.5"
+SpecialFunctions = "2.6.1"
 SpikingNeuralNetworks = "1.1.0"
+UnPack = "1.0.2"
